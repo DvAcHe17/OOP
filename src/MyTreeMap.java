@@ -2,6 +2,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+
 public class MyTreeMap<K, V> implements MyMap<K, V> {
 
     private static final boolean RED = false;
@@ -11,25 +12,22 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
     private Node<K, V> root;
     private int size;
 
-    /** Карта с естественным порядком ключей (ключи должны быть Comparable). */
     public MyTreeMap() {
         this(null);
     }
 
-    /** Карта с заданным порядком; {@code null} означает естественный порядок. */
     public MyTreeMap(Comparator<? super K> comparator) {
         this.comparator = comparator;
     }
 
-    // ---------------------------------------------------------------- API
-
     @Override
     public V put(K key, V value) {
-        Objects.requireNonNull(key, "key must not be null");
+        Objects.requireNonNull(key, "Ключ не может быть null");
 
-        Node<K, V> t = root;
-        if (t == null) {
-            compare(key, key); // проверка типа/компаратора на первом ключе
+        Node<K, V> current = root;
+        if (current == null) {
+            // Сразу проверяем, что ключ можно сравнивать, даже если он первый
+            compare(key, key);
             root = new Node<>(key, value, null);
             size = 1;
             return null;
@@ -38,39 +36,46 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
         int cmp;
         Node<K, V> parent;
         do {
-            parent = t;
-            cmp = compare(key, t.key);
+            parent = current;
+            cmp = compare(key, current.key);
             if (cmp < 0) {
-                t = t.left;
+                current = current.left;
             } else if (cmp > 0) {
-                t = t.right;
+                current = current.right;
             } else {
-                V old = t.value;
-                t.value = value;
-                return old;
+                V oldValue = current.value;
+                current.value = value;
+                return oldValue;
             }
-        } while (t != null);
+        } while (current != null);
 
-        Node<K, V> created = new Node<>(key, value, parent);
+        Node<K, V> newNode = new Node<>(key, value, parent);
         if (cmp < 0) {
-            parent.left = created;
+            parent.left = newNode;
         } else {
-            parent.right = created;
+            parent.right = newNode;
         }
-        fixAfterInsertion(created);
+
+        fixAfterInsertion(newNode);
         size++;
         return null;
     }
 
     @Override
     public V get(K key) {
-        Node<K, V> n = getNode(key);
-        return n == null ? null : n.value;
+        Node<K, V> node = getNode(key);
+        return node == null ? null : node.value;
     }
 
     @Override
     public V remove(K key) {
-        throw new UnsupportedOperationException("remove() будет реализован в День 2");
+        Node<K, V> target = getNode(key);
+        if (target == null) {
+            return null;
+        }
+        V oldValue = target.value;
+        deleteNode(target);
+        return oldValue;
     }
 
     @Override
@@ -112,17 +117,12 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
         return result;
     }
 
-    // ------------------------------------------------- диагностика (для тестов)
+    // Вспомогательные методы для проверки балансировки в тестах
 
-    /** Высота дерева (0 для пустого). */
     public int height() {
-        return height(root);
+        return calcHeight(root);
     }
 
-    /**
-     * Проверяет все инварианты: порядок BST, чёрный корень,
-     * отсутствие двух красных подряд, одинаковую чёрную высоту, корректность parent-ссылок.
-     */
     public boolean isValidRedBlackTree() {
         if (root == null) {
             return true;
@@ -130,22 +130,20 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
         if (root.color != BLACK || root.parent != null) {
             return false;
         }
-        return checkNode(root, null, null) >= 0;
+        return validateSubtree(root, null, null) >= 0;
     }
 
-    // ------------------------------------------------------------ внутреннее
-
     private Node<K, V> getNode(K key) {
-        Objects.requireNonNull(key, "key must not be null");
-        Node<K, V> p = root;
-        while (p != null) {
-            int cmp = compare(key, p.key);
+        Objects.requireNonNull(key, "Ключ не может быть null");
+        Node<K, V> current = root;
+        while (current != null) {
+            int cmp = compare(key, current.key);
             if (cmp < 0) {
-                p = p.left;
+                current = current.left;
             } else if (cmp > 0) {
-                p = p.right;
+                current = current.right;
             } else {
-                return p;
+                return current;
             }
         }
         return null;
@@ -153,106 +151,106 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
 
     @SuppressWarnings("unchecked")
     private int compare(K a, K b) {
-        return comparator == null
-                ? ((Comparable<? super K>) a).compareTo(b)
-                : comparator.compare(a, b);
+        if (comparator != null) {
+            return comparator.compare(a, b);
+        }
+        return ((Comparable<? super K>) a).compareTo(b);
     }
 
     private Node<K, V> firstNode() {
-        Node<K, V> p = root;
-        if (p != null) {
-            while (p.left != null) {
-                p = p.left;
+        Node<K, V> node = root;
+        if (node != null) {
+            while (node.left != null) {
+                node = node.left;
             }
         }
-        return p;
+        return node;
     }
 
-    private static <K, V> Node<K, V> successor(Node<K, V> t) {
-        if (t == null) {
+    private static <K, V> Node<K, V> successor(Node<K, V> node) {
+        if (node == null) {
             return null;
         }
-        if (t.right != null) {
-            Node<K, V> p = t.right;
+        if (node.right != null) {
+            Node<K, V> p = node.right;
             while (p.left != null) {
                 p = p.left;
             }
             return p;
         }
-        Node<K, V> p = t.parent;
-        Node<K, V> child = t;
-        while (p != null && child == p.right) {
-            child = p;
-            p = p.parent;
+        Node<K, V> parent = node.parent;
+        Node<K, V> child = node;
+        while (parent != null && child == parent.right) {
+            child = parent;
+            parent = parent.parent;
         }
-        return p;
+        return parent;
     }
 
-    private static <K, V> boolean colorOf(Node<K, V> p) {
-        return p == null ? BLACK : p.color;
+    private static <K, V> boolean colorOf(Node<K, V> node) {
+        return node == null ? BLACK : node.color;
     }
 
-    private static <K, V> Node<K, V> parentOf(Node<K, V> p) {
-        return p == null ? null : p.parent;
+    private static <K, V> Node<K, V> parentOf(Node<K, V> node) {
+        return node == null ? null : node.parent;
     }
 
-    private static <K, V> Node<K, V> leftOf(Node<K, V> p) {
-        return p == null ? null : p.left;
+    private static <K, V> Node<K, V> leftOf(Node<K, V> node) {
+        return node == null ? null : node.left;
     }
 
-    private static <K, V> Node<K, V> rightOf(Node<K, V> p) {
-        return p == null ? null : p.right;
+    private static <K, V> Node<K, V> rightOf(Node<K, V> node) {
+        return node == null ? null : node.right;
     }
 
-    private static <K, V> void setColor(Node<K, V> p, boolean color) {
-        if (p != null) {
-            p.color = color;
+    private static <K, V> void setColor(Node<K, V> node, boolean color) {
+        if (node != null) {
+            node.color = color;
         }
     }
 
-    private void rotateLeft(Node<K, V> p) {
-        if (p == null) {
+    private void rotateLeft(Node<K, V> pivot) {
+        if (pivot == null) {
             return;
         }
-        Node<K, V> r = p.right;
-        p.right = r.left;
-        if (r.left != null) {
-            r.left.parent = p;
+        Node<K, V> rightChild = pivot.right;
+        pivot.right = rightChild.left;
+        if (rightChild.left != null) {
+            rightChild.left.parent = pivot;
         }
-        r.parent = p.parent;
-        if (p.parent == null) {
-            root = r;
-        } else if (p.parent.left == p) {
-            p.parent.left = r;
+        rightChild.parent = pivot.parent;
+        if (pivot.parent == null) {
+            root = rightChild;
+        } else if (pivot.parent.left == pivot) {
+            pivot.parent.left = rightChild;
         } else {
-            p.parent.right = r;
+            pivot.parent.right = rightChild;
         }
-        r.left = p;
-        p.parent = r;
+        rightChild.left = pivot;
+        pivot.parent = rightChild;
     }
 
-    private void rotateRight(Node<K, V> p) {
-        if (p == null) {
+    private void rotateRight(Node<K, V> pivot) {
+        if (pivot == null) {
             return;
         }
-        Node<K, V> l = p.left;
-        p.left = l.right;
-        if (l.right != null) {
-            l.right.parent = p;
+        Node<K, V> leftChild = pivot.left;
+        pivot.left = leftChild.right;
+        if (leftChild.right != null) {
+            leftChild.right.parent = pivot;
         }
-        l.parent = p.parent;
-        if (p.parent == null) {
-            root = l;
-        } else if (p.parent.right == p) {
-            p.parent.right = l;
+        leftChild.parent = pivot.parent;
+        if (pivot.parent == null) {
+            root = leftChild;
+        } else if (pivot.parent.right == pivot) {
+            pivot.parent.right = leftChild;
         } else {
-            p.parent.left = l;
+            pivot.parent.left = leftChild;
         }
-        l.right = p;
-        p.parent = l;
+        leftChild.right = pivot;
+        pivot.parent = leftChild;
     }
 
-    /** Восстанавливает инварианты после вставки красного узла {@code x}. */
     private void fixAfterInsertion(Node<K, V> x) {
         x.color = RED;
 
@@ -260,18 +258,17 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
             if (parentOf(x) == leftOf(parentOf(parentOf(x)))) {
                 Node<K, V> uncle = rightOf(parentOf(parentOf(x)));
                 if (colorOf(uncle) == RED) {
-                    // Случай 1: дядя красный, перекрашиваем и поднимаемся выше
+                    // Дядя красный: перекрашиваем отца и дядю в чёрный, деда — в красный
                     setColor(parentOf(x), BLACK);
                     setColor(uncle, BLACK);
                     setColor(parentOf(parentOf(x)), RED);
                     x = parentOf(parentOf(x));
                 } else {
                     if (x == rightOf(parentOf(x))) {
-                        // Случай 2: «колено», сводим к случаю 3
+                        // Зигзаг: выравниваем ветку малым поворотом
                         x = parentOf(x);
                         rotateLeft(x);
                     }
-                    // Случай 3: поворот деда
                     setColor(parentOf(x), BLACK);
                     setColor(parentOf(parentOf(x)), RED);
                     rotateRight(parentOf(parentOf(x)));
@@ -297,41 +294,158 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
         root.color = BLACK;
     }
 
-    private int height(Node<K, V> n) {
-        return n == null ? 0 : 1 + Math.max(height(n.left), height(n.right));
+    private void deleteNode(Node<K, V> p) {
+        size--;
+
+        // Если у узла два потомка, копируем данные преемника и переключаемся на его удаление
+        if (p.left != null && p.right != null) {
+            Node<K, V> s = successor(p);
+            p.key = s.key;
+            p.value = s.value;
+            p = s;
+        }
+
+        // Теперь у p не более одного потомка
+        Node<K, V> replacement = (p.left != null) ? p.left : p.right;
+
+        if (replacement != null) {
+            replacement.parent = p.parent;
+            if (p.parent == null) {
+                root = replacement;
+            } else if (p == p.parent.left) {
+                p.parent.left = replacement;
+            } else {
+                p.parent.right = replacement;
+            }
+
+            p.left = null;
+            p.right = null;
+            p.parent = null;
+
+            if (p.color == BLACK) {
+                fixAfterDeletion(replacement);
+            }
+        } else if (p.parent == null) {
+            // Удалили последний узел в дереве
+            root = null;
+        } else {
+            // Удаляемый узел является листом; если он чёрный, сначала чиним баланс, потом отцепляем
+            if (p.color == BLACK) {
+                fixAfterDeletion(p);
+            }
+
+            if (p.parent != null) {
+                if (p == p.parent.left) {
+                    p.parent.left = null;
+                } else if (p == p.parent.right) {
+                    p.parent.right = null;
+                }
+                p.parent = null;
+            }
+        }
     }
 
-    /**
-     * @return чёрная высота поддерева или -1, если нарушен какой-либо инвариант.
-     *         Ключи поддерева должны лежать строго в интервале (min, max).
-     */
-    private int checkNode(Node<K, V> n, K min, K max) {
-        if (n == null) {
+    private void fixAfterDeletion(Node<K, V> x) {
+        while (x != root && colorOf(x) == BLACK) {
+            if (x == leftOf(parentOf(x))) {
+                Node<K, V> sibling = rightOf(parentOf(x));
+
+                // Случай 1: брат красный — делаем поворот, чтобы свести к случаю с чёрным братом
+                if (colorOf(sibling) == RED) {
+                    setColor(sibling, BLACK);
+                    setColor(parentOf(x), RED);
+                    rotateLeft(parentOf(x));
+                    sibling = rightOf(parentOf(x));
+                }
+
+                // Случай 2: оба ребёнка брата чёрные — отдаём чёрный цвет вверх
+                if (colorOf(leftOf(sibling)) == BLACK && colorOf(rightOf(sibling)) == BLACK) {
+                    setColor(sibling, RED);
+                    x = parentOf(x);
+                } else {
+                    // Случай 3: дальний (правый) ребёнок брата чёрный — разворачиваем поддерево брата
+                    if (colorOf(rightOf(sibling)) == BLACK) {
+                        setColor(leftOf(sibling), BLACK);
+                        setColor(sibling, RED);
+                        rotateRight(sibling);
+                        sibling = rightOf(parentOf(x));
+                    }
+                    // Случай 4: дальний ребёнок брата красный — окончательно выравниваем высоту
+                    setColor(sibling, colorOf(parentOf(x)));
+                    setColor(parentOf(x), BLACK);
+                    setColor(rightOf(sibling), BLACK);
+                    rotateLeft(parentOf(x));
+                    x = root;
+                }
+            } else {
+                // Зеркальные случаи, когда x — правый потомок
+                Node<K, V> sibling = leftOf(parentOf(x));
+
+                if (colorOf(sibling) == RED) {
+                    setColor(sibling, BLACK);
+                    setColor(parentOf(x), RED);
+                    rotateRight(parentOf(x));
+                    sibling = leftOf(parentOf(x));
+                }
+
+                if (colorOf(rightOf(sibling)) == BLACK && colorOf(leftOf(sibling)) == BLACK) {
+                    setColor(sibling, RED);
+                    x = parentOf(x);
+                } else {
+                    if (colorOf(leftOf(sibling)) == BLACK) {
+                        setColor(rightOf(sibling), BLACK);
+                        setColor(sibling, RED);
+                        rotateLeft(sibling);
+                        sibling = leftOf(parentOf(x));
+                    }
+                    setColor(sibling, colorOf(parentOf(x)));
+                    setColor(parentOf(x), BLACK);
+                    setColor(leftOf(sibling), BLACK);
+                    rotateRight(parentOf(x));
+                    x = root;
+                }
+            }
+        }
+
+        setColor(x, BLACK);
+    }
+
+    private int calcHeight(Node<K, V> node) {
+        if (node == null) {
+            return 0;
+        }
+        return 1 + Math.max(calcHeight(node.left), calcHeight(node.right));
+    }
+
+    // Возвращает чёрную высоту поддерева или -1 при нарушении правил КЧ-дерева
+    private int validateSubtree(Node<K, V> node, K min, K max) {
+        if (node == null) {
             return 1;
         }
-        if (min != null && compare(n.key, min) <= 0) {
+        if (min != null && compare(node.key, min) <= 0) {
             return -1;
         }
-        if (max != null && compare(n.key, max) >= 0) {
+        if (max != null && compare(node.key, max) >= 0) {
             return -1;
         }
-        if (n.color == RED && (colorOf(n.left) == RED || colorOf(n.right) == RED)) {
+        if (node.color == RED && (colorOf(node.left) == RED || colorOf(node.right) == RED)) {
             return -1;
         }
-        if ((n.left != null && n.left.parent != n) || (n.right != null && n.right.parent != n)) {
+        if ((node.left != null && node.left.parent != node)
+                || (node.right != null && node.right.parent != node)) {
             return -1;
         }
-        int leftBlack = checkNode(n.left, min, n.key);
-        int rightBlack = checkNode(n.right, n.key, max);
-        if (leftBlack < 0 || rightBlack < 0 || leftBlack != rightBlack) {
+
+        int leftBlackHeight = validateSubtree(node.left, min, node.key);
+        int rightBlackHeight = validateSubtree(node.right, node.key, max);
+        if (leftBlackHeight < 0 || rightBlackHeight < 0 || leftBlackHeight != rightBlackHeight) {
             return -1;
         }
-        return leftBlack + (n.color == BLACK ? 1 : 0);
+        return leftBlackHeight + (node.color == BLACK ? 1 : 0);
     }
 
-    /** Узел дерева. Новый узел создаётся чёрным, красным его делает fixAfterInsertion. */
     private static final class Node<K, V> implements MyMap.Entry<K, V> {
-        final K key;
+        K key;
         V value;
         Node<K, V> left;
         Node<K, V> right;
