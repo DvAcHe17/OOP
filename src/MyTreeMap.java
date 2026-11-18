@@ -1,9 +1,10 @@
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 
-public class MyTreeMap<K, V> implements MyMap<K, V> {
+public class MyTreeMap<K, V> implements MyNavigableMap<K, V> {
 
     private static final boolean RED = false;
     private static final boolean BLACK = true;
@@ -18,6 +19,11 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
 
     public MyTreeMap(Comparator<? super K> comparator) {
         this.comparator = comparator;
+    }
+
+    @Override
+    public Comparator<? super K> comparator() {
+        return comparator;
     }
 
     @Override
@@ -117,6 +123,116 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
         return result;
     }
 
+    // --------------------------------------------------------- Навигация
+
+    @Override
+    public K firstKey() {
+        Node<K, V> first = firstNode();
+        if (first == null) {
+            throw new NoSuchElementException("Карта пуста");
+        }
+        return first.key;
+    }
+
+    @Override
+    public K lastKey() {
+        Node<K, V> last = lastNode();
+        if (last == null) {
+            throw new NoSuchElementException("Карта пуста");
+        }
+        return last.key;
+    }
+
+    @Override
+    public Entry<K, V> firstEntry() {
+        return exportEntry(firstNode());
+    }
+
+    @Override
+    public Entry<K, V> lastEntry() {
+        return exportEntry(lastNode());
+    }
+
+    @Override
+    public K floorKey(K key) {
+        Node<K, V> node = floorNode(key);
+        return node == null ? null : node.key;
+    }
+
+    @Override
+    public K lowerKey(K key) {
+        Node<K, V> node = lowerNode(key);
+        return node == null ? null : node.key;
+    }
+
+    @Override
+    public K ceilingKey(K key) {
+        Node<K, V> node = ceilingNode(key);
+        return node == null ? null : node.key;
+    }
+
+    @Override
+    public K higherKey(K key) {
+        Node<K, V> node = higherNode(key);
+        return node == null ? null : node.key;
+    }
+
+    @Override
+    public MyNavigableMap<K, V> subMap(K from, boolean fromInclusive, K to, boolean toInclusive) {
+        Objects.requireNonNull(from, "Нижняя граница не может быть null");
+        Objects.requireNonNull(to, "Верхняя граница не может быть null");
+        if (compare(from, to) > 0) {
+            throw new IllegalArgumentException("Нижняя граница больше верхней");
+        }
+
+        MyTreeMap<K, V> snapshot = new MyTreeMap<>(comparator);
+        Node<K, V> current = fromInclusive ? ceilingNode(from) : higherNode(from);
+
+        while (current != null) {
+            int cmpTo = compare(current.key, to);
+            if (toInclusive ? cmpTo > 0 : cmpTo >= 0) {
+                break;
+            }
+            snapshot.put(current.key, current.value);
+            current = successor(current);
+        }
+        return snapshot;
+    }
+
+    @Override
+    public MyNavigableMap<K, V> headMap(K to, boolean inclusive) {
+        Objects.requireNonNull(to, "Верхняя граница не может быть null");
+        compare(to, to); // Проверка совместимости типа ключа
+
+        MyTreeMap<K, V> snapshot = new MyTreeMap<>(comparator);
+        Node<K, V> current = firstNode();
+
+        while (current != null) {
+            int cmpTo = compare(current.key, to);
+            if (inclusive ? cmpTo > 0 : cmpTo >= 0) {
+                break;
+            }
+            snapshot.put(current.key, current.value);
+            current = successor(current);
+        }
+        return snapshot;
+    }
+
+    @Override
+    public MyNavigableMap<K, V> tailMap(K from, boolean inclusive) {
+        Objects.requireNonNull(from, "Нижняя граница не может быть null");
+        compare(from, from); // Проверка совместимости типа ключа
+
+        MyTreeMap<K, V> snapshot = new MyTreeMap<>(comparator);
+        Node<K, V> current = inclusive ? ceilingNode(from) : higherNode(from);
+
+        while (current != null) {
+            snapshot.put(current.key, current.value);
+            current = successor(current);
+        }
+        return snapshot;
+    }
+
     // Вспомогательные методы для проверки балансировки в тестах
 
     public int height() {
@@ -132,6 +248,8 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
         }
         return validateSubtree(root, null, null) >= 0;
     }
+
+    // ------------------------------------------------- Внутренние методы
 
     private Node<K, V> getNode(K key) {
         Objects.requireNonNull(key, "Ключ не может быть null");
@@ -149,6 +267,87 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
         return null;
     }
 
+    private Node<K, V> floorNode(K key) {
+        Objects.requireNonNull(key, "Ключ не может быть null");
+        compare(key, key);
+
+        Node<K, V> current = root;
+        Node<K, V> candidate = null;
+        while (current != null) {
+            int cmp = compare(key, current.key);
+            if (cmp > 0) {
+                candidate = current;
+                current = current.right;
+            } else if (cmp < 0) {
+                current = current.left;
+            } else {
+                return current;
+            }
+        }
+        return candidate;
+    }
+
+    private Node<K, V> lowerNode(K key) {
+        Objects.requireNonNull(key, "Ключ не может быть null");
+        compare(key, key);
+
+        Node<K, V> current = root;
+        Node<K, V> candidate = null;
+        while (current != null) {
+            int cmp = compare(key, current.key);
+            if (cmp > 0) {
+                candidate = current;
+                current = current.right;
+            } else {
+                current = current.left;
+            }
+        }
+        return candidate;
+    }
+
+    private Node<K, V> ceilingNode(K key) {
+        Objects.requireNonNull(key, "Ключ не может быть null");
+        compare(key, key);
+
+        Node<K, V> current = root;
+        Node<K, V> candidate = null;
+        while (current != null) {
+            int cmp = compare(key, current.key);
+            if (cmp < 0) {
+                candidate = current;
+                current = current.left;
+            } else if (cmp > 0) {
+                current = current.right;
+            } else {
+                return current;
+            }
+        }
+        return candidate;
+    }
+
+    private Node<K, V> higherNode(K key) {
+        Objects.requireNonNull(key, "Ключ не может быть null");
+        compare(key, key);
+
+        Node<K, V> current = root;
+        Node<K, V> candidate = null;
+        while (current != null) {
+            int cmp = compare(key, current.key);
+            if (cmp < 0) {
+                candidate = current;
+                current = current.left;
+            } else {
+                current = current.right;
+            }
+        }
+        return candidate;
+    }
+
+    // Возвращаем снимок записи, так как при удалении узлов поля внутри Node могут перезаписываться
+    private static <K, V> Entry<K, V> exportEntry(Node<K, V> node) {
+        return node == null ? null : new SimpleEntry<>(node.key, node.value);
+    }
+
     @SuppressWarnings("unchecked")
     private int compare(K a, K b) {
         if (comparator != null) {
@@ -162,6 +361,16 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
         if (node != null) {
             while (node.left != null) {
                 node = node.left;
+            }
+        }
+        return node;
+    }
+
+    private Node<K, V> lastNode() {
+        Node<K, V> node = root;
+        if (node != null) {
+            while (node.right != null) {
+                node = node.right;
             }
         }
         return node;
@@ -258,14 +467,12 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
             if (parentOf(x) == leftOf(parentOf(parentOf(x)))) {
                 Node<K, V> uncle = rightOf(parentOf(parentOf(x)));
                 if (colorOf(uncle) == RED) {
-                    // Дядя красный: перекрашиваем отца и дядю в чёрный, деда — в красный
                     setColor(parentOf(x), BLACK);
                     setColor(uncle, BLACK);
                     setColor(parentOf(parentOf(x)), RED);
                     x = parentOf(parentOf(x));
                 } else {
                     if (x == rightOf(parentOf(x))) {
-                        // Зигзаг: выравниваем ветку малым поворотом
                         x = parentOf(x);
                         rotateLeft(x);
                     }
@@ -305,7 +512,6 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
             p = s;
         }
 
-        // Теперь у p не более одного потомка
         Node<K, V> replacement = (p.left != null) ? p.left : p.right;
 
         if (replacement != null) {
@@ -326,10 +532,8 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
                 fixAfterDeletion(replacement);
             }
         } else if (p.parent == null) {
-            // Удалили последний узел в дереве
             root = null;
         } else {
-            // Удаляемый узел является листом; если он чёрный, сначала чиним баланс, потом отцепляем
             if (p.color == BLACK) {
                 fixAfterDeletion(p);
             }
@@ -350,7 +554,6 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
             if (x == leftOf(parentOf(x))) {
                 Node<K, V> sibling = rightOf(parentOf(x));
 
-                // Случай 1: брат красный — делаем поворот, чтобы свести к случаю с чёрным братом
                 if (colorOf(sibling) == RED) {
                     setColor(sibling, BLACK);
                     setColor(parentOf(x), RED);
@@ -358,19 +561,16 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
                     sibling = rightOf(parentOf(x));
                 }
 
-                // Случай 2: оба ребёнка брата чёрные — отдаём чёрный цвет вверх
                 if (colorOf(leftOf(sibling)) == BLACK && colorOf(rightOf(sibling)) == BLACK) {
                     setColor(sibling, RED);
                     x = parentOf(x);
                 } else {
-                    // Случай 3: дальний (правый) ребёнок брата чёрный — разворачиваем поддерево брата
                     if (colorOf(rightOf(sibling)) == BLACK) {
                         setColor(leftOf(sibling), BLACK);
                         setColor(sibling, RED);
                         rotateRight(sibling);
                         sibling = rightOf(parentOf(x));
                     }
-                    // Случай 4: дальний ребёнок брата красный — окончательно выравниваем высоту
                     setColor(sibling, colorOf(parentOf(x)));
                     setColor(parentOf(x), BLACK);
                     setColor(rightOf(sibling), BLACK);
@@ -378,7 +578,6 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
                     x = root;
                 }
             } else {
-                // Зеркальные случаи, когда x — правый потомок
                 Node<K, V> sibling = leftOf(parentOf(x));
 
                 if (colorOf(sibling) == RED) {
@@ -442,6 +641,31 @@ public class MyTreeMap<K, V> implements MyMap<K, V> {
             return -1;
         }
         return leftBlackHeight + (node.color == BLACK ? 1 : 0);
+    }
+
+    private static final class SimpleEntry<K, V> implements MyMap.Entry<K, V> {
+        private final K key;
+        private final V value;
+
+        SimpleEntry(K key, V value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        @Override
+        public K getKey() {
+            return key;
+        }
+
+        @Override
+        public V getValue() {
+            return value;
+        }
+
+        @Override
+        public String toString() {
+            return key + "=" + value;
+        }
     }
 
     private static final class Node<K, V> implements MyMap.Entry<K, V> {
