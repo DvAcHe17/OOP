@@ -202,7 +202,7 @@ public class MyTreeMap<K, V> implements MyNavigableMap<K, V> {
     @Override
     public MyNavigableMap<K, V> headMap(K to, boolean inclusive) {
         Objects.requireNonNull(to, "Верхняя граница не может быть null");
-        compare(to, to); // Проверка совместимости типа ключа
+        compare(to, to);
 
         MyTreeMap<K, V> snapshot = new MyTreeMap<>(comparator);
         Node<K, V> current = firstNode();
@@ -221,7 +221,7 @@ public class MyTreeMap<K, V> implements MyNavigableMap<K, V> {
     @Override
     public MyNavigableMap<K, V> tailMap(K from, boolean inclusive) {
         Objects.requireNonNull(from, "Нижняя граница не может быть null");
-        compare(from, from); // Проверка совместимости типа ключа
+        compare(from, from);
 
         MyTreeMap<K, V> snapshot = new MyTreeMap<>(comparator);
         Node<K, V> current = inclusive ? ceilingNode(from) : higherNode(from);
@@ -231,6 +231,23 @@ public class MyTreeMap<K, V> implements MyNavigableMap<K, V> {
             current = successor(current);
         }
         return snapshot;
+    }
+
+    @Override
+    public String toString() {
+        if (isEmpty()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        Node<K, V> current = firstNode();
+        while (current != null) {
+            sb.append(current.key).append('=').append(current.value);
+            current = successor(current);
+            if (current != null) {
+                sb.append(", ");
+            }
+        }
+        return sb.append('}').toString();
     }
 
     // Вспомогательные методы для проверки балансировки в тестах
@@ -504,7 +521,6 @@ public class MyTreeMap<K, V> implements MyNavigableMap<K, V> {
     private void deleteNode(Node<K, V> p) {
         size--;
 
-        // Если у узла два потомка, копируем данные преемника и переключаемся на его удаление
         if (p.left != null && p.right != null) {
             Node<K, V> s = successor(p);
             p.key = s.key;
@@ -616,7 +632,6 @@ public class MyTreeMap<K, V> implements MyNavigableMap<K, V> {
         return 1 + Math.max(calcHeight(node.left), calcHeight(node.right));
     }
 
-    // Возвращает чёрную высоту поддерева или -1 при нарушении правил КЧ-дерева
     private int validateSubtree(Node<K, V> node, K min, K max) {
         if (node == null) {
             return 1;

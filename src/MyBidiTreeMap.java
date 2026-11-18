@@ -17,7 +17,6 @@ public class MyBidiTreeMap<K, V> implements MyBidiMap<K, V> {
         this.backward = new MyTreeMap<>(valueComparator);
     }
 
-    // Внутренний конструктор для создания обратного представления поверх тех же деревьев
     private MyBidiTreeMap(MyTreeMap<K, V> forward, MyTreeMap<V, K> backward, MyBidiMap<V, K> inverseView) {
         this.forward = forward;
         this.backward = backward;
@@ -40,9 +39,10 @@ public class MyBidiTreeMap<K, V> implements MyBidiMap<K, V> {
                 forward.remove(oldKey);
             }
         } catch (RuntimeException e) {
-            // Откатываем изменение в forward, если value оказалось несравнимым
+            // Возвращаем оба дерева в исходное состояние, если вставка value не удалась
             if (oldValue != null) {
                 forward.put(key, oldValue);
+                backward.put(oldValue, key);
             } else {
                 forward.remove(key);
             }
@@ -59,6 +59,7 @@ public class MyBidiTreeMap<K, V> implements MyBidiMap<K, V> {
 
     @Override
     public K getKey(V value) {
+        Objects.requireNonNull(value, "Значение не может быть null");
         return backward.get(value);
     }
 
@@ -73,6 +74,7 @@ public class MyBidiTreeMap<K, V> implements MyBidiMap<K, V> {
 
     @Override
     public K removeByValue(V value) {
+        Objects.requireNonNull(value, "Значение не может быть null");
         K removedKey = backward.remove(value);
         if (removedKey != null) {
             forward.remove(removedKey);
@@ -87,6 +89,7 @@ public class MyBidiTreeMap<K, V> implements MyBidiMap<K, V> {
 
     @Override
     public boolean containsValue(V value) {
+        Objects.requireNonNull(value, "Значение не может быть null");
         return backward.containsKey(value);
     }
 
@@ -122,6 +125,11 @@ public class MyBidiTreeMap<K, V> implements MyBidiMap<K, V> {
             inverseView = new MyBidiTreeMap<>(backward, forward, this);
         }
         return inverseView;
+    }
+
+    @Override
+    public String toString() {
+        return forward.toString();
     }
 
     // Диагностический метод для тестов: проверяет синхронность обоих деревьев
